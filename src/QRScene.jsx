@@ -1,4 +1,4 @@
-import { useCallback, useLayoutEffect, useMemo, useRef } from 'react'
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef } from 'react'
 import { Canvas, useFrame, useThree } from '@react-three/fiber'
 import { OrbitControls } from '@react-three/drei'
 import * as THREE from 'three'
@@ -9,7 +9,6 @@ import {
   terrainHeight,
   terrainColor,
   FLAT,
-  MAX_H,
   sceneBg,
 } from './qrUtils'
 
@@ -162,7 +161,6 @@ function Voxels({ matrix, expanded, sea, theme, onToggle }) {
           )
           mesh.setColorAt(i, color)
         }
-
       }
       mesh.instanceMatrix.needsUpdate = true
       if (withColor) mesh.instanceColor.needsUpdate = true
@@ -265,39 +263,25 @@ function Voxels({ matrix, expanded, sea, theme, onToggle }) {
   )
 }
 
-function CameraRig({ size }) {
+function FitCamera({ worldSize, margin = 1.15 }) {
   const camera = useThree((s) => s.camera)
-  const controls = useThree((s) => s.controls)
-  const aspect = useThree((s) => s.size.width / Math.max(1, s.size.height))
+  const viewport = useThree((s) => s.size)
 
-  useLayoutEffect(() => {
-    const target = new THREE.Vector3(0, MAX_H * 0.3, 0)
+  useEffect(() => {
+    const aspect = viewport.width / viewport.height
+    const fov = (camera.fov * Math.PI) / 180
+    const radius = (worldSize * Math.SQRT2 * margin) / 2 // half-diagonal + breathing room
 
-    // how far back the camera must sit so a sphere around the scene fits
-    const vHalf = THREE.MathUtils.degToRad(camera.fov) / 2
-    const hHalf = Math.atan(Math.tan(vHalf) * aspect)
-    const radius = Math.hypot((size / 2) * Math.SQRT2, MAX_H / 2) * 1.1
-    const dist = radius / Math.sin(Math.min(vHalf, hHalf))
+    const distForHeight = radius / Math.tan(fov / 2)
+    const distForWidth = radius / (Math.tan(fov / 2) * aspect)
 
-    // keep whatever angle the camera is already at, just change the distance
-    const dir = camera.position.clone().sub(target).normalize()
-    camera.position.copy(target).addScaledVector(dir, dist)
-    camera.lookAt(target)
-
-    if (controls) {
-      controls.target.copy(target)
-      Object.assign(controls, {
-        minDistance: dist * 0.5,
-        maxDistance: dist * 1.6,
-      })
-      controls.update()
-    }
-
-  }, [size, aspect, camera, controls])
+    camera.position.setLength(Math.max(distForHeight, distForWidth))
+    camera.lookAt(0, 0, 0)
+    camera.updateProjectionMatrix()
+  }, [camera, viewport.width, viewport.height, worldSize, margin])
 
   return null
 }
-
 
 export default function QRScene({
   matrix,
@@ -308,9 +292,12 @@ export default function QRScene({
   onToggle,
 }) {
   const L = night ? LIGHT.night : LIGHT.day
+  const moduleCount = matrix.length
+  const cellSize = 1
+
   return (
     <Canvas
-      camera={{ fov: 35, position: [30, 26, 30] }}
+      camera={{ position: [0, 10, 10], fov: 45 }}
       gl={{ preserveDrawingBuffer: true }}
     >
       <color attach="background" args={[sceneBg(theme, night)]} />
@@ -330,7 +317,7 @@ export default function QRScene({
         autoRotate={expanded}
         autoRotateSpeed={0.8}
       />
-      <CameraRig size={matrix.length} />
+      <FitCamera worldSize={moduleCount * cellSize} />
     </Canvas>
   )
 }
