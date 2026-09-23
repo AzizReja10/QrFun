@@ -1,0 +1,95 @@
+main {
+  max-width: 420px;
+  margin: 40px auto;
+  text-align: center;
+  font-family: system-ui, sans-serif;
+}
+
+input[type="text"] {
+  width: 100%;
+  padding: 12px;
+  font-size: 16px;
+  box-sizing: border-box;
+  border: 1px solid #d1cdc4;
+  border-radius: 6px;
+  background: #ffffff;
+}
+
+p {
+  margin: 12px 0 0;
+  font-size: 14px;
+  opacity: 0.8;
+}
+
+.badge {
+  display: inline-block;
+  padding: 6px 12px;
+  border-radius: 999px;
+  font-size: 14px;
+  font-weight: 600;
+  margin-top: 14px;
+  opacity: 1;
+}
+
+.ok {
+  background: #d6f5df;
+  color: #146c2e;
+}
+
+.bad {
+  background: #fde0dc;
+  color: #a1261b;
+}
+
+
+.controls {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  margin-top: 14px;
+}
+
+button,
+select {
+  padding: 9px 16px;
+  font-size: 14px;
+  font-weight: 500;
+  cursor: pointer;
+  border-radius: 6px;
+  border: 1px solid #d1cdc4;
+  background: #ffffff;
+  color: #222;
+  transition: background 0.15s ease, border-color 0.15s ease;
+}
+
+button:hover,
+select:hover {
+  background: #f7f5ef;
+  border-color: #b8b3a7;
+}
+
+label {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 14px;
+  user-select: none;
+}
+
+input[type="range"] {
+  cursor: pointer;
+}
+
+.scene {
+  width: 100%;
+  aspect-ratio: 1 / 1;
+  height: auto;
+  margin: 24px auto;
+}
+
+
+.scene canvas {
+  cursor: pointer;
+}
