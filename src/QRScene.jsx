@@ -9,7 +9,6 @@ import {
   terrainHeight,
   terrainColor,
   FLAT,
-  sceneBg,
 } from './qrUtils'
 
 const DURATION = 1.6 // seconds for a full morph
@@ -21,20 +20,11 @@ const TWEEN_TIME = 0.45 // seconds for sea level / theme changes to ease in
 const HOVER_AMP = 1.3 // how high the hovered cubes lift
 
 const LIGHT = {
-  day: {
-    ambient: 0.7,
-    ambientColor: '#ffffff',
-    sun: 1.2,
-    sunColor: '#ffffff',
-    pos: [10, 30, 10],
-  },
-  night: {
-    ambient: 0.35,
-    ambientColor: '#7f94ff',
-    sun: 0.7,
-    sunColor: '#b8c7ff',
-    pos: [-15, 25, -10],
-  },
+  ambient: 0.7,
+  ambientColor: '#ffffff',
+  sun: 1.2,
+  sunColor: '#ffffff',
+  pos: [10, 30, 10],
 }
 
 function Voxels({ matrix, expanded, sea, theme, onToggle }) {
@@ -263,22 +253,248 @@ function Voxels({ matrix, expanded, sea, theme, onToggle }) {
   )
 }
 
-function FitCamera({ worldSize, margin = 1.15 }) {
+function shortestAngleDiff(from, to) {
+  const twoPi = Math.PI * 2
+  let diff = (to - from) % twoPi
+  if (diff > Math.PI) diff -= twoPi
+  if (diff < -Math.PI) diff += twoPi
+  return diff
+}
+
+function easeInOutCubic(x) {
+  return x < 0.5 ? 4 * x * x * x : 1 - Math.pow(-2 * x + 2, 3) / 2
+}
+
+function CameraController({
+  worldSize,
+  expanded,
+  align2DTrigger,
+  controlsRef,
+  margin = 1.18,
+}) {
   const camera = useThree((s) => s.camera)
   const viewport = useThree((s) => s.size)
+  const prevExpanded = useRef(expanded)
+  const animRef = useRef(null)
+  const initialFitDone = useRef(false)
 
-  useEffect(() => {
-    const aspect = viewport.width / viewport.height
+  // Calculate straight 2D distance so the QR code fits the viewport with margin
+  const getTopDownDistance = useCallback(() => {
+    const aspect = viewport.width / Math.max(1, viewport.height)
     const fov = (camera.fov * Math.PI) / 180
-    const radius = (worldSize * Math.SQRT2 * margin) / 2 // half-diagonal + breathing room
+    const half = (worldSize / 2) * margin
+    const distH = half / Math.tan(fov / 2)
+    const distW = half / (Math.tan(fov / 2) * aspect)
+    return Math.max(distH, distW)
+  }, [camera.fov, viewport.width, viewport.height, worldSize, margin])
 
-    const distForHeight = radius / Math.tan(fov / 2)
-    const distForWidth = radius / (Math.tan(fov / 2) * aspect)
+  // Calculate 3D perspective distance
+  const get3DDistance = useCallback(() => {
+    const aspect = viewport.width / Math.max(1, viewport.height)
+    const fov = (camera.fov * Math.PI) / 180
+    const radius = (worldSize * Math.SQRT2 * margin * 1.05) / 2
+    const distH = radius / Math.tan(fov / 2)
+    const distW = radius / (Math.tan(fov / 2) * aspect)
+    return Math.max(distH, distW)
+  }, [camera.fov, viewport.width, viewport.height, worldSize, margin])
 
-    camera.position.setLength(Math.max(distForHeight, distForWidth))
-    camera.lookAt(0, 0, 0)
-    camera.updateProjectionMatrix()
-  }, [camera, viewport.width, viewport.height, worldSize, margin])
+  const snapOrAnimateTo2D = useCallback(
+    (animate = true) => {
+      const dist = getTopDownDistance()
+      const targetRadius = dist
+      const targetPhi = 0.001 // tiny angle from Y-axis so cross(up, lookAt) never degenerates
+      const targetTheta = 0
+      const targetLook = new THREE.Vector3(0, 0, 0)
+
+      if (!animate) {
+        const targetSpherical = new THREE.Spherical(targetRadius, targetPhi, targetTheta)
+        const targetOffset = new THREE.Vector3().setFromSpherical(targetSpherical)
+        camera.position.copy(targetLook).add(targetOffset)
+        camera.up.set(0, 1, 0)
+        camera.lookAt(targetLook)
+        camera.updateProjectionMatrix()
+        if (controlsRef.current) {
+          controlsRef.current.target.copy(targetLook)
+          if (controlsRef.current._sphericalDelta) {
+            controlsRef.current._sphericalDelta.set(0, 0, 0)
+          }
+          controlsRef.current.enabled = true
+          controlsRef.current.update()
+        }
+        return
+      }
+
+      const startTarget = controlsRef.current
+        ? controlsRef.current.target.clone()
+        : new THREE.Vector3(0, 0, 0)
+
+      // Calculate current offset from target in spherical coordinates
+      const startOffset = new THREE.Vector3().copy(camera.position).sub(startTarget)
+      const startSpherical = new THREE.Spherical().setFromVector3(startOffset)
+      startSpherical.phi = Math.max(0.0005, startSpherical.phi)
+
+      const dTheta = shortestAngleDiff(startSpherical.theta, targetTheta)
+      const dPhi = targetPhi - startSpherical.phi
+      const dRadius = targetRadius - startSpherical.radius
+
+      // Temporarily disable OrbitControls to avoid fighting/jitter during flight
+      if (controlsRef.current) {
+        controlsRef.current.enabled = false
+      }
+
+      animRef.current = {
+        startSpherical,
+        dTheta,
+        dPhi,
+        dRadius,
+        targetTheta,
+        targetPhi,
+        targetRadius,
+        startTarget,
+        targetLook,
+        startTime: performance.now(),
+        duration: 700,
+      }
+    },
+    [camera, getTopDownDistance, controlsRef],
+  )
+
+  const snapOrAnimateTo3D = useCallback(() => {
+    const dist = get3DDistance()
+    const targetRadius = dist
+    const targetPhi = Math.PI / 4 // 45 degrees elevation
+    const targetTheta = 0
+    const targetLook = new THREE.Vector3(0, 0, 0)
+
+    const startTarget = controlsRef.current
+      ? controlsRef.current.target.clone()
+      : new THREE.Vector3(0, 0, 0)
+
+    const startOffset = new THREE.Vector3().copy(camera.position).sub(startTarget)
+    const startSpherical = new THREE.Spherical().setFromVector3(startOffset)
+    startSpherical.phi = Math.max(0.0005, startSpherical.phi)
+
+    const dTheta = shortestAngleDiff(startSpherical.theta, targetTheta)
+    const dPhi = targetPhi - startSpherical.phi
+    const dRadius = targetRadius - startSpherical.radius
+
+    if (controlsRef.current) {
+      controlsRef.current.enabled = false
+    }
+
+    animRef.current = {
+      startSpherical,
+      dTheta,
+      dPhi,
+      dRadius,
+      targetTheta,
+      targetPhi,
+      targetRadius,
+      startTarget,
+      targetLook,
+      startTime: performance.now(),
+      duration: 750,
+    }
+  }, [camera, get3DDistance, controlsRef])
+
+  // Initial setup: start straight aligned in 2D
+  useEffect(() => {
+    if (!initialFitDone.current) {
+      initialFitDone.current = true
+      if (!expanded) {
+        snapOrAnimateTo2D(false)
+      } else {
+        const dist = get3DDistance()
+        const targetSpherical = new THREE.Spherical(dist, Math.PI / 4, 0)
+        camera.position.setFromSpherical(targetSpherical)
+        camera.up.set(0, 1, 0)
+        camera.lookAt(0, 0, 0)
+        camera.updateProjectionMatrix()
+        if (controlsRef.current) {
+          controlsRef.current.target.set(0, 0, 0)
+          controlsRef.current.update()
+        }
+      }
+    }
+  }, [expanded, snapOrAnimateTo2D, get3DDistance, camera, controlsRef])
+
+  // Explicit align 2D button clicked
+  useEffect(() => {
+    if (align2DTrigger) {
+      snapOrAnimateTo2D(true)
+    }
+  }, [align2DTrigger, snapOrAnimateTo2D])
+
+  // Expanded toggled (reveal / flatten)
+  useEffect(() => {
+    if (prevExpanded.current !== expanded) {
+      prevExpanded.current = expanded
+      if (!expanded) {
+        snapOrAnimateTo2D(true)
+      } else {
+        snapOrAnimateTo3D()
+      }
+    }
+  }, [expanded, snapOrAnimateTo2D, snapOrAnimateTo3D])
+
+  // Smooth camera flight
+  useFrame(() => {
+    if (animRef.current) {
+      const anim = animRef.current
+      const elapsed = performance.now() - anim.startTime
+      const progress = Math.min(1, elapsed / anim.duration)
+      const t = easeInOutCubic(progress)
+
+      const curTheta = anim.startSpherical.theta + anim.dTheta * t
+      const curPhi = Math.max(0.0005, anim.startSpherical.phi + anim.dPhi * t)
+      const curRadius = anim.startSpherical.radius + anim.dRadius * t
+
+      const curSpherical = new THREE.Spherical(curRadius, curPhi, curTheta)
+      const curOffset = new THREE.Vector3().setFromSpherical(curSpherical)
+      const curTarget = new THREE.Vector3().lerpVectors(anim.startTarget, anim.targetLook, t)
+
+      camera.position.copy(curTarget).add(curOffset)
+      camera.up.set(0, 1, 0)
+      camera.lookAt(curTarget)
+
+      if (controlsRef.current) {
+        controlsRef.current.target.copy(curTarget)
+      }
+
+      if (progress >= 1) {
+        const finalSpherical = new THREE.Spherical(
+          anim.targetRadius,
+          anim.targetPhi,
+          anim.targetTheta,
+        )
+        const finalOffset = new THREE.Vector3().setFromSpherical(finalSpherical)
+        camera.position.copy(anim.targetLook).add(finalOffset)
+        camera.up.set(0, 1, 0)
+        camera.lookAt(anim.targetLook)
+        camera.updateProjectionMatrix()
+
+        if (controlsRef.current) {
+          controlsRef.current.target.copy(anim.targetLook)
+          if (controlsRef.current._sphericalDelta) {
+            controlsRef.current._sphericalDelta.set(0, 0, 0)
+          }
+          controlsRef.current.enabled = true
+          controlsRef.current.update()
+        }
+        animRef.current = null
+      }
+    }
+  })
+
+  // Ensure controls re-enabled if unmounted
+  useEffect(() => {
+    const controls = controlsRef.current
+    return () => {
+      if (controls) {
+        controls.enabled = true
+      }
+    }
+  }, [controlsRef])
 
   return null
 }
@@ -288,21 +504,21 @@ export default function QRScene({
   expanded,
   sea,
   theme,
-  night,
   onToggle,
+  align2DTrigger = 0,
 }) {
-  const L = night ? LIGHT.night : LIGHT.day
+  const controlsRef = useRef()
   const moduleCount = matrix.length
   const cellSize = 1
 
   return (
     <Canvas
       camera={{ position: [0, 10, 10], fov: 45 }}
-      gl={{ preserveDrawingBuffer: true }}
+      gl={{ preserveDrawingBuffer: true, alpha: true }}
     >
-      <color attach="background" args={[sceneBg(theme, night)]} />
-      <ambientLight intensity={L.ambient} color={L.ambientColor} />
-      <directionalLight position={L.pos} intensity={L.sun} color={L.sunColor} />
+      <color attach="background" args={[theme?.bg || '#f3efe4']} />
+      <ambientLight intensity={LIGHT.ambient} color={LIGHT.ambientColor} />
+      <directionalLight position={LIGHT.pos} intensity={LIGHT.sun} color={LIGHT.sunColor} />
       <Voxels
         matrix={matrix}
         expanded={expanded}
@@ -311,13 +527,19 @@ export default function QRScene({
         onToggle={onToggle}
       />
       <OrbitControls
+        ref={controlsRef}
         makeDefault
         enableDamping
         maxPolarAngle={Math.PI / 2.1}
         autoRotate={expanded}
         autoRotateSpeed={0.8}
       />
-      <FitCamera worldSize={moduleCount * cellSize} />
+      <CameraController
+        worldSize={moduleCount * cellSize}
+        expanded={expanded}
+        align2DTrigger={align2DTrigger}
+        controlsRef={controlsRef}
+      />
     </Canvas>
   )
 }

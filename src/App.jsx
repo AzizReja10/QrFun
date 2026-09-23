@@ -1,7 +1,10 @@
 import { useEffect, useMemo, useState } from 'react'
+import { motion } from 'framer-motion'
 import { getMatrix, THEMES, sceneBg } from './qrUtils'
 import { checkScannable } from './scanCheck'
 import QRScene from './QRScene'
+import Header from './components/Header'
+import StudioControls from './components/StudioControls'
 import './App.css'
 
 function useDebounced(value, ms) {
@@ -13,26 +16,22 @@ function useDebounced(value, ms) {
   return v
 }
 
-function exportPng() {
-  const canvas =
-    document.querySelector('.stage canvas') || document.querySelector('canvas')
-  if (!canvas) return
-  const a = document.createElement('a')
-  a.download = 'qr-terrain.png'
-  a.href = canvas.toDataURL('image/png')
-  a.click()
-}
-
 export default function App() {
   const [url, setUrl] = useState('https://icqr.com/')
   const [expanded, setExpanded] = useState(false)
   const [sea, setSea] = useState(0.35)
   const [themeKey, setThemeKey] = useState('meadow')
-  const [night, setNight] = useState(false)
-  const theme = THEMES[themeKey]
+  const [align2DTrigger, setAlign2DTrigger] = useState(0)
+  const theme = THEMES[themeKey] || THEMES.meadow
+
+  const handleAlign2D = () => {
+    setExpanded(false)
+    setAlign2DTrigger((c) => c + 1)
+  }
 
   const debouncedUrl = useDebounced(url, 350)
   const matrix = useMemo(() => getMatrix(debouncedUrl.trim()), [debouncedUrl])
+  const matrixSize = matrix ? matrix.length : 29
 
   const scannable = useMemo(
     () =>
@@ -41,83 +40,81 @@ export default function App() {
             matrix,
             debouncedUrl.trim(),
             theme,
-            sceneBg(theme, night),
+            sceneBg(theme),
           )
         : null,
-    [matrix, debouncedUrl, theme, night],
+    [matrix, debouncedUrl, theme],
   )
 
   useEffect(() => {
-    document.body.style.background = sceneBg(theme, night)
-    document.body.style.color = night ? '#e6e9f5' : '#111'
-  }, [theme, night])
+    document.body.style.background = sceneBg(theme)
+    document.body.style.color = '#111'
+  }, [theme])
+
+  const handleExport = () => {
+    const canvas =
+      document.querySelector('.stage canvas') || document.querySelector('canvas')
+    if (!canvas) return
+
+    const out = document.createElement('canvas')
+    out.width = canvas.width
+    out.height = canvas.height
+    const ctx = out.getContext('2d')
+    ctx.fillStyle = theme?.bg || '#f3efe4'
+    ctx.fillRect(0, 0, out.width, out.height)
+    ctx.drawImage(canvas, 0, 0)
+
+    const a = document.createElement('a')
+    a.download = 'qr-terrain.png'
+    a.href = out.toDataURL('image/png')
+    a.click()
+  }
 
   return (
-    <div className="app">
-      <main className="stage">
-        {matrix && (
-          <QRScene
-            matrix={matrix}
+    <div className="app-root">
+      {/* Background Ambience / Mesh Glow */}
+      <div className="ambient-radial" />
+      <div className="ambient-grid-overlay" />
+
+      {/* Top Studio Navbar */}
+      <Header scannable={scannable} />
+
+      {/* Main Studio Viewport */}
+      <div className="main-viewport">
+        <motion.div
+          className="studio-layout"
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          transition={{ duration: 0.3, ease: 'easeOut' }}
+        >
+          <main className="stage">
+            {matrix && (
+              <QRScene
+                matrix={matrix}
+                expanded={expanded}
+                sea={sea}
+                theme={theme}
+                onToggle={() => setExpanded((v) => !v)}
+                align2DTrigger={align2DTrigger}
+              />
+            )}
+          </main>
+
+          <StudioControls
+            url={url}
+            setUrl={setUrl}
             expanded={expanded}
+            setExpanded={setExpanded}
             sea={sea}
-            theme={theme}
-            night={night}
-            onToggle={() => setExpanded((v) => !v)}
+            setSea={setSea}
+            themeKey={themeKey}
+            setThemeKey={setThemeKey}
+            exportPng={handleExport}
+            matrixSize={matrixSize}
+            onAlign2D={handleAlign2D}
           />
-        )}
-      </main>
-
-      <aside className="sidebar">
-        <h2>QR Studio</h2>
-
-        <input
-          type="text"
-          value={url}
-          onChange={(e) => setUrl(e.target.value)}
-          placeholder="Paste a URL"
-        />
-
-        <p className="hint">
-          Tap the code to {expanded ? 'return to the QR' : 'reveal the island'}
-        </p>
-
-        <label className="slider-label">
-          <span>Sea level</span>
-          <input
-            type="range"
-            min="0"
-            max="0.8"
-            step="0.01"
-            value={sea}
-            onChange={(e) => setSea(Number(e.target.value))}
-          />
-        </label>
-
-        <div className="theme-row">
-          <select
-            value={themeKey}
-            onChange={(e) => setThemeKey(e.target.value)}
-          >
-            {Object.entries(THEMES).map(([key, t]) => (
-              <option key={key} value={key}>
-                {t.label}
-              </option>
-            ))}
-          </select>
-
-          <button onClick={() => setNight((n) => !n)}>
-            {night ? 'Day' : 'Night'}
-          </button>
-        </div>
-
-        <button onClick={exportPng}>Save PNG</button>
-
-        {scannable !== null && (
-          <p className={`badge ${scannable ? 'ok' : 'bad'}`}>
-            {scannable ? '✓ QR scans' : '⚠ QR may not scan'}
-          </p>
-        )}
-      </aside>
+        </motion.div>
+      </div>
     </div>
   )
 }

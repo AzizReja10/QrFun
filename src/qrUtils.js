@@ -45,10 +45,32 @@ export const THEMES = {
     sand: '#ffd4a3',
     snow: '#fff0f5',
   },
+  cyberpunk: {
+    label: 'Cyberpunk',
+    bg: '#f3efe4',
+    light: '#f3efe4',
+    qrHue: 320,
+    finderHue: 175,
+    waterHue: 190,
+    grassHue: 310,
+    sand: '#2a3556',
+    snow: '#00f7ff',
+  },
+  obsidian: {
+    label: 'Obsidian',
+    bg: '#f3efe4',
+    light: '#f3efe4',
+    qrHue: 260,
+    finderHue: 140,
+    waterHue: 225,
+    grassHue: 240,
+    sand: '#222834',
+    snow: '#e2e8f0',
+  },
 }
 
-export const NIGHT_BG = '#0e1322'
-export const sceneBg = (theme, night) => (night ? NIGHT_BG : theme.bg)
+export const DEFAULT_DAY_BG = '#f3efe4'
+export const sceneBg = (theme) => (theme?.bg || DEFAULT_DAY_BG)
 
 export function getMatrix(text) {
   if (!text) return null
