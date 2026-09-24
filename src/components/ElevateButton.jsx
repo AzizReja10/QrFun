@@ -51,11 +51,23 @@ const StyledWrapper = styled.div`
     padding: 1em;
     transition: all 0.2s;
     cursor: pointer;
+    touch-action: manipulation;
   }
 
-  .button:hover {
-    transform: translate(-1px, -1px);
-    box-shadow: 5px 5px 0px #000;
+  @media (hover: hover) {
+    .button:hover {
+      transform: translate(-1px, -1px);
+      box-shadow: 5px 5px 0px #000;
+    }
+
+    .button:hover span {
+      padding-right: ${(props) => props.$padRight};
+    }
+
+    .button:hover span:after {
+      opacity: 1;
+      right: 0;
+    }
   }
 
   .button:active {
@@ -78,15 +90,6 @@ const StyledWrapper = styled.div`
     right: -20px;
     transition: 0.7s;
     white-space: nowrap;
-  }
-
-  .button:hover span {
-    padding-right: ${(props) => props.$padRight};
-  }
-
-  .button:hover span:after {
-    opacity: 1;
-    right: 0;
   }
 `
 

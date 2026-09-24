@@ -42,12 +42,15 @@ const StyledWrapper = styled.div`
     box-shadow: 4px 4px 0px #000;
     cursor: pointer;
     transition: all 0.15s ease;
+    touch-action: manipulation;
   }
 
-  .align-2d-btn:hover {
-    transform: translate(-1px, -1px);
-    box-shadow: 5px 5px 0px #000;
-    background: #fef9c3;
+  @media (hover: hover) {
+    .align-2d-btn:hover {
+      transform: translate(-1px, -1px);
+      box-shadow: 5px 5px 0px #000;
+      background: #fef9c3;
+    }
   }
 
   .align-2d-btn:active {

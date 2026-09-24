@@ -38,12 +38,23 @@ const StyledWrapper = styled.div`
     box-shadow: 4px 4px 0px #000;
     transition-duration: 0.2s;
     box-sizing: border-box;
+    touch-action: manipulation;
   }
 
-  .Btn:hover {
-    color: transparent;
-    transform: translate(-1px, -1px);
-    box-shadow: 5px 5px 0px #000;
+  @media (hover: hover) {
+    .Btn:hover {
+      color: transparent;
+      transform: translate(-1px, -1px);
+      box-shadow: 5px 5px 0px #000;
+    }
+
+    .Btn:hover svg {
+      right: calc(50% - 7px);
+      margin: 0;
+      padding: 0;
+      border: none;
+      transition-duration: 0.2s;
+    }
   }
 
   .svg {
@@ -53,14 +64,6 @@ const StyledWrapper = styled.div`
     right: 0;
     margin-right: 20px;
     fill: white;
-    transition-duration: 0.2s;
-  }
-
-  .Btn:hover svg {
-    right: calc(50% - 7px);
-    margin: 0;
-    padding: 0;
-    border: none;
     transition-duration: 0.2s;
   }
 

@@ -124,4 +124,27 @@ const StyledHeader = styled.header`
   .scan-badge.is-warning {
     color: #d97706;
   }
+
+  @media (max-width: 860px) {
+    padding: 10px 12px 10px;
+
+    .header-card {
+      height: 52px;
+      padding: 0 12px;
+    }
+
+    .brand-title {
+      font-size: 15px;
+    }
+
+    .brand-badge {
+      font-size: 10px;
+    }
+  }
+
+  @media (max-width: 390px) {
+    .brand-badge {
+      display: none;
+    }
+  }
 `

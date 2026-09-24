@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
 import { motion } from 'framer-motion'
+import { ArrowUp } from 'lucide-react'
 import { getMatrix, THEMES, sceneBg } from './qrUtils'
 import { checkScannable } from './scanCheck'
 import QRScene from './QRScene'
@@ -70,6 +71,16 @@ export default function App() {
     a.click()
   }
 
+  const [showScrollTop, setShowScrollTop] = useState(false)
+
+  useEffect(() => {
+    const handleScroll = () => {
+      setShowScrollTop(window.scrollY > 180)
+    }
+    window.addEventListener('scroll', handleScroll, { passive: true })
+    return () => window.removeEventListener('scroll', handleScroll)
+  }, [])
+
   return (
     <div className="app-root">
       {/* Background Ambience / Mesh Glow */}
@@ -115,6 +126,18 @@ export default function App() {
           />
         </motion.div>
       </div>
+
+      {showScrollTop && (
+        <button
+          type="button"
+          className="mobile-scroll-top-btn"
+          onClick={() => window.scrollTo({ top: 0, behavior: 'smooth' })}
+          title="Scroll up to 3D scene"
+        >
+          <ArrowUp size={14} />
+          <span>3D View</span>
+        </button>
+      )}
     </div>
   )
 }

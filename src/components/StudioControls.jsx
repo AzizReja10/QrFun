@@ -227,7 +227,38 @@ const StyledSidebar = styled.aside`
   @media (max-width: 860px) {
     margin: 0;
     height: auto;
-    max-height: 48vh;
+    max-height: none;
+    overflow: visible;
+
+    .sidebar-scrollable {
+      overflow-y: visible;
+      flex: none;
+      height: auto;
+      padding: 14px;
+    }
+
+    .header-banner {
+      padding: 12px 14px 10px;
+    }
+
+    .title {
+      font-size: 16px;
+    }
+
+    .sidebar-tabs {
+      padding: 8px 10px;
+      gap: 6px;
+    }
+
+    .tab-btn {
+      padding: 9px 4px;
+      font-size: 13px;
+      touch-action: manipulation;
+    }
+
+    .sidebar-footer {
+      padding: 14px 16px calc(16px + env(safe-area-inset-bottom, 0px));
+    }
   }
 
   .header-banner {
